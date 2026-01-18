@@ -1,0 +1,10 @@
+{
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.diagnosticMode": "workspace",
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.completeFunctionParens": true,
+    "python.analysis.reportMissingImports": true,
+    "python.analysis.reportMissingTypeStubs": false,
+    "python.analysis.useLibraryCodeForTypes": true,
+    "python.defaultInterpreterPath": "./venv/Scripts/python.exe"
+}

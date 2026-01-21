@@ -1,4 +1,3 @@
-"""主窗口模块 - 应用主界面和业务逻辑"""
 import os
 from typing import Dict, List, Optional
 
@@ -8,6 +7,7 @@ from data_manager import DataManager
 from system_tray import SystemTray
 from utils import create_notebook_icon, create_font
 from widgets import TaskWidget
+from time_rings import TimeRingWidget
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -38,8 +38,59 @@ class MainWindow(QtWidgets.QMainWindow):
         self._setup_ui()
         self._populate_lists()
 
+    def _create_right_panel_no_header(self) -> QtWidgets.QWidget:
+        """创建右侧面板（任务管理）- 不含顶部标题栏"""
+        right = QtWidgets.QWidget()
+        right_layout = QtWidgets.QVBoxLayout(right)
+        right_layout.setContentsMargins(12, 12, 12, 12)
+        right_layout.setSpacing(8)
+
+        # 任务输入框
+        add_layout = QtWidgets.QHBoxLayout()
+        self.input_task = QtWidgets.QLineEdit()
+        self.input_task.setPlaceholderText("添加新任务，按回车确认")
+        self.input_task.setFont(create_font(12))
+        self.input_task.returnPressed.connect(self.add_task_from_input)
+        add_layout.addWidget(self.input_task)
+
+        btn_add_task = QtWidgets.QPushButton("添加")
+        btn_add_task.setFont(create_font(12))
+        btn_add_task.clicked.connect(self.add_task_from_input)
+        add_layout.addWidget(btn_add_task)
+        right_layout.addLayout(add_layout)
+
+        # 任务滚动区域
+        self.scroll: QtWidgets.QScrollArea = QtWidgets.QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.tasks_container: QtWidgets.QWidget = QtWidgets.QWidget()
+        self.tasks_layout: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(self.tasks_container)
+        self.tasks_layout.setContentsMargins(6, 6, 6, 6)
+        self.tasks_layout.setSpacing(6)
+        self.tasks_layout.addStretch()
+        
+        # 设置滚动区域的组件
+        self.scroll.setWidget(self.tasks_container)
+        right_layout.addWidget(self.scroll)
+
+        # 添加当前列表标签，放置在输入框上方
+        self.current_list_label = QtWidgets.QLabel("")
+        self.current_list_label.setFont(create_font(18, bold=True))
+        self.current_list_label.setStyleSheet("color: #333333;")
+        right_layout.insertWidget(0, self.current_list_label)
+        return right
     def _setup_ui(self):
         """构建用户界面"""
+        # 创建主布局容器
+        main_widget = QtWidgets.QWidget()
+        main_layout = QtWidgets.QVBoxLayout(main_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # 添加时间圆环组件 - 放在最顶部
+        self.time_ring_widget = TimeRingWidget()
+        main_layout.addWidget(self.time_ring_widget)
+
+        # 创建分割器用于左右面板
         splitter = QtWidgets.QSplitter()
         splitter.setHandleWidth(2)
 
@@ -48,16 +99,17 @@ class MainWindow(QtWidgets.QMainWindow):
         splitter.addWidget(left)
         left.setMaximumWidth(280)
 
-        # 右侧：任务管理
-        right = self._create_right_panel()
+        # 右侧：任务管理（移除原有的标题栏，因为现在有时间圆环了）
+        right = self._create_right_panel_no_header()
         splitter.addWidget(right)
 
-        self.setCentralWidget(splitter)
+        main_layout.addWidget(splitter)
+
+        self.setCentralWidget(main_widget)
 
         # 状态栏
         self.status: QtWidgets.QStatusBar = self.statusBar()
         self.status.setFont(create_font(10))
-
     def _create_left_panel(self) -> QtWidgets.QWidget:
         """创建左侧面板（列表管理）"""
         left = QtWidgets.QWidget()
@@ -81,7 +133,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # 按钮组
         btns = QtWidgets.QHBoxLayout()
         for label, callback, width in [
-            ("+ 新建列表", self.add_list, None),
+            ("新建列表", self.add_list, None),
             ("重命名", self.rename_list, None),
             ("删除", self.delete_list, None),
         ]:

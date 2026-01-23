@@ -125,7 +125,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # 列表组件
         self.list_widget: QtWidgets.QListWidget = QtWidgets.QListWidget()
-        self.list_widget.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection) # type: ignore
+        self.list_widget.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection) # type: ignore
         self.list_widget.setFont(create_font(11))
         self.list_widget.itemSelectionChanged.connect(self.on_list_changed)
         left_layout.addWidget(self.list_widget)
@@ -214,16 +214,20 @@ class MainWindow(QtWidgets.QMainWindow):
         QtWidgets.QApplication.quit()
 
     def closeEvent(self, event: QtGui.QCloseEvent):
-        """窗口关闭事件 - 隐藏到托盘"""
+        """窗口关闭事件 - 隐藏到托盘并显示悬浮圆环"""
         if self.pending_save:
             self.save_timer.stop()
             self._save_data_immediate()
         
         event.ignore()
         self.hide()
+        
+        # 显示悬浮圆环
+        self.system_tray._hide_window()
+        
         self.system_tray.show_message(
             "ToDo 任务清单",
-            "程序已最小化到系统托盘，双击托盘图标可重新打开"
+            "程序已最小化到系统托盘，时间圆环已悬浮显示"
         )
 
     # ========== 列表管理

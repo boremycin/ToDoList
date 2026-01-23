@@ -1,6 +1,6 @@
-from PySide6.QtWidgets import QWidget
-from PySide6.QtCore import QTimer, QRectF, Qt
-from PySide6.QtGui import QPainter, QPen, QColor, QFont
+from PySide6.QtWidgets import QWidget, QLabel
+from PySide6.QtCore import QTimer, QRectF, Qt, QPoint
+from PySide6.QtGui import QPainter, QPen, QColor, QFont, QMouseEvent
 import datetime
 import calendar
 
@@ -98,3 +98,76 @@ class TimeRingWidget(QWidget):
         painter.setPen(QColor(150, 150, 150))
         painter.drawText(QRectF(cx - radius, cy + radius * 0.1, radius * 2, radius * 0.3), 
                          Qt.AlignmentFlag.AlignCenter, label)
+
+
+class FloatingTimeRings(QWidget):
+    """悬浮时间圆环组件，显示在桌面顶层但不遮挡其他应用"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(
+            Qt.WindowType.Tool |
+            Qt.WindowType.FramelessWindowHint |
+            Qt.WindowType.WindowStaysOnTopHint |
+            Qt.WindowType.BypassWindowManagerHint |
+            Qt.WindowType.X11BypassWindowManagerHint
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
+        self.setFixedSize(600, 600)
+
+        # 创建时间圆环组件
+        self.ring_widget = TimeRingWidget(self)
+        self.ring_widget.setGeometry(0, 0, 450, 450)
+
+        # 添加透明拖拽区域（顶部一小条区域用于拖动窗口）
+        self.drag_bar = QLabel(self)
+        self.drag_bar.setGeometry(0, 0, 450, 200)  # 顶部30px区域用于拖动
+        self.drag_bar.setStyleSheet("background-color: rgba(0, 0, 0, 0.01); border-radius: 15px;")
+        self.drag_bar.setVisible(True)
+
+        # 拖拽相关变量
+        self.old_pos = None
+
+        # 设置初始位置到屏幕右上角
+        self.move_to_corner()
+
+    def move_to_corner(self):
+        """移动到屏幕右上角"""
+        screen_geo = self.screen().availableGeometry()
+        self.move(screen_geo.right() - self.width() - 20, screen_geo.top() + 20)
+
+    def mousePressEvent(self, event: QMouseEvent):
+        """记录拖动开始位置"""
+        if event.button() == Qt.MouseButton.LeftButton and self.drag_bar.geometry().contains(event.pos()):
+            self.old_pos = event.globalPosition().toPoint()
+        event.accept()
+
+    def mouseMoveEvent(self, event: QMouseEvent):
+        """处理窗口拖动"""
+        if self.old_pos is not None and event.buttons() == Qt.MouseButton.LeftButton:
+            new_pos = event.globalPosition().toPoint()
+            delta = new_pos - self.old_pos
+            self.move(self.x() + delta.x(), self.y() + delta.y())
+            self.old_pos = new_pos
+        event.accept()
+
+    def mouseReleaseEvent(self, event: QMouseEvent):
+        """结束拖动"""
+        self.old_pos = None
+        event.accept()
+
+    def enterEvent(self, event):
+        """鼠标进入时稍微降低透明度使窗口更明显"""
+        self.setWindowOpacity(0.75)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        """鼠标离开时恢复较低透明度"""
+        self.setWindowOpacity(0.5)
+        super().leaveEvent(event)
+
+    def showEvent(self, event):
+        """显示时设置透明度"""
+        self.setWindowOpacity(0.5)
+        super().showEvent(event)

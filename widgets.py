@@ -49,9 +49,10 @@ class CircleToggle(QtWidgets.QPushButton):
             p.drawEllipse(r)
 
     def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
-        """鼠标释放 - 确保状态正确"""
-        if event.button() == QtCore.Qt.LeftButton: # type: ignore
-            self.update()
+        """鼠标释放 - 切换状态"""
+        if event.button() == QtCore.Qt.MouseButton.LeftButton: # type: ignore
+            # 切换按钮状态并发射信号
+            self.toggle()
             event.accept()
         else:
             super().mouseReleaseEvent(event)
@@ -61,7 +62,7 @@ class CircleToggle(QtWidgets.QPushButton):
         super().enterEvent(event)
         self.update()
 
-    def leaveEvent(self, event: QtGui.QKeyEvent) -> None:
+    def leaveEvent(self, event: QtCore.QEvent) -> None:
         """鼠标离开 - 更新显示"""
         super().leaveEvent(event)
         self.update()

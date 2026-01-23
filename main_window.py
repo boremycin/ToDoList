@@ -1,5 +1,6 @@
 import os
 from typing import Dict, List, Optional
+from datetime import datetime, timedelta
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -158,31 +159,35 @@ class MainWindow(QtWidgets.QMainWindow):
         lbl_lists.setStyleSheet("color: #333333;")
         left_layout.addWidget(lbl_lists)
 
+        # 操作按钮布局 - 在标题下方
+        button_layout = QtWidgets.QHBoxLayout()
+        btn_add_list = QtWidgets.QPushButton("+")
+        btn_add_list.setFixedWidth(30)
+        btn_add_list.setFont(create_font(10))
+        btn_add_list.clicked.connect(self.add_list)
+        button_layout.addWidget(btn_add_list)
+
+        btn_rename_list = QtWidgets.QPushButton("R")
+        btn_rename_list.setFixedWidth(30)
+        btn_rename_list.setFont(create_font(10))
+        btn_rename_list.clicked.connect(self.rename_list)
+        button_layout.addWidget(btn_rename_list)
+
+        btn_delete_list = QtWidgets.QPushButton("×")
+        btn_delete_list.setFixedWidth(30)
+        btn_delete_list.setFont(create_font(10))
+        btn_delete_list.clicked.connect(self.delete_list)
+        button_layout.addWidget(btn_delete_list)
+
+        # 将按钮布局添加到标题下方
+        left_layout.addLayout(button_layout)
+
         # 列表组件
         self.list_widget: QtWidgets.QListWidget = QtWidgets.QListWidget()
         self.list_widget.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection) # type: ignore
         self.list_widget.setFont(create_font(11))
         self.list_widget.itemSelectionChanged.connect(self.on_list_changed)
         left_layout.addWidget(self.list_widget)
-
-        # "我的任务"组 - 包含操作按钮
-        my_tasks_group = QtWidgets.QGroupBox("我的任务")
-        my_tasks_layout = QtWidgets.QHBoxLayout(my_tasks_group)  # 使用水平布局
-        
-        # 按钮组 - 使用更小的按钮
-        for label, callback, width in [
-            ("+", self.add_list, 30),
-            ("R", self.rename_list, 30),
-            ("×", self.delete_list, 30),
-        ]:
-            btn = QtWidgets.QPushButton(label)
-            btn.setFont(create_font(10))
-            if width:
-                btn.setFixedWidth(width)
-            btn.clicked.connect(callback)
-            my_tasks_layout.addWidget(btn)
-        
-        left_layout.addWidget(my_tasks_group)
 
         # 报告按钮
         self.report_btn = QtWidgets.QPushButton("📊 报告")
@@ -203,7 +208,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _update_reports(self):
         """更新统计报告"""
         if self.report_window and self.report_window.isVisible():
-            self.report_window.update_data()
+            self.report_window.update_data() # type: ignore
 
     def _format_duration(self, seconds):
         """格式化时长显示"""
@@ -425,92 +430,316 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 class ReportWindow(QtWidgets.QWidget):
-    """报告窗口"""
+    """报告窗口 - 包含周度直方图和任务时间统计"""
     def __init__(self, data_manager):
         super().__init__()
         self.data_manager = data_manager
         self.setWindowTitle("任务统计报告")
-        self.resize(400, 500)
+        self.resize(800, 600)
+        self.setWindowIcon(create_notebook_icon())
         
-        layout = QtWidgets.QVBoxLayout(self)
-        
-        # 日统计
-        daily_title = QtWidgets.QLabel("📅 今日统计")
-        daily_title.setFont(create_font(12, bold=True))
-        layout.addWidget(daily_title)
-        
-        self.daily_report = QtWidgets.QLabel()
-        self.daily_report.setFont(create_font(10))
-        self.daily_report.setStyleSheet("color: #666666;")
-        self.daily_report.setWordWrap(True)
-        layout.addWidget(self.daily_report)
-        
-        layout.addWidget(QtWidgets.QLabel(""))  # 空白间隔
-        
-        # 周统计
-        weekly_title = QtWidgets.QLabel("🗓️ 本周统计")
-        weekly_title.setFont(create_font(12, bold=True))
-        layout.addWidget(weekly_title)
-        
-        self.weekly_report = QtWidgets.QLabel()
-        self.weekly_report.setFont(create_font(10))
-        self.weekly_report.setStyleSheet("color: #666666;")
-        self.weekly_report.setWordWrap(True)
-        layout.addWidget(self.weekly_report)
-        
-        layout.addWidget(QtWidgets.QLabel(""))  # 空白间隔
-        
-        # 月统计
-        monthly_title = QtWidgets.QLabel("📆 本月统计")
-        monthly_title.setFont(create_font(12, bold=True))
-        layout.addWidget(monthly_title)
-        
-        self.monthly_report = QtWidgets.QLabel()
-        self.monthly_report.setFont(create_font(10))
-        self.monthly_report.setStyleSheet("color: #666666;")
-        self.monthly_report.setWordWrap(True)
-        layout.addWidget(self.monthly_report)
-        
-        # 更新数据
-        self.update_data()
-    
-    def update_data(self):
-        """更新报告数据"""
-        # 日统计
-        daily_stats = self.data_manager.get_daily_stats()
-        total_daily = sum(daily_stats.values())
-        daily_text = f"总计: {self._format_duration(total_daily)}\n"
-        if len(daily_stats) > 0:
-            top_task = max(daily_stats, key=daily_stats.get)
-            daily_text += f"最耗时: {top_task} ({self._format_duration(daily_stats[top_task])})"
-        self.daily_report.setText(daily_text)
+        # 当前选中的周
+        self.current_start_date = self._get_monday_for_current_week()
+        self.animation = None  # 存储过渡动画
 
-        # 周统计
-        weekly_stats = self.data_manager.get_weekly_stats()
-        total_weekly = sum(weekly_stats.values())
-        weekly_text = f"总计: {self._format_duration(total_weekly)}\n"
-        if len(weekly_stats) > 0:
-            top_task = max(weekly_stats, key=weekly_stats.get)
-            weekly_text += f"最耗时: {top_task} ({self._format_duration(weekly_stats[top_task])})"
-        self.weekly_report.setText(weekly_text)
+        # 主布局
+        main_layout = QtWidgets.QVBoxLayout(self)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(15)
 
-        # 月统计
-        monthly_stats = self.data_manager.get_monthly_stats()
-        total_monthly = sum(monthly_stats.values())
-        monthly_text = f"总计: {self._format_duration(total_monthly)}\n"
-        if len(monthly_stats) > 0:
-            top_task = max(monthly_stats, key=monthly_stats.get)
-            monthly_text += f"最耗时: {top_task} ({self._format_duration(monthly_stats[top_task])})"
-        self.monthly_report.setText(monthly_text)
-    
+        # 顶部日期选择控件
+        header_layout = QtWidgets.QHBoxLayout()
+        header_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+
+        # 左箭头按钮 - 选择上周
+        self.btn_prev_week = QtWidgets.QPushButton("◀")
+        self.btn_prev_week.setFixedSize(40, 40)
+        self.btn_prev_week.setFont(create_font(12, bold=True))
+        self.btn_prev_week.clicked.connect(self._prev_week)
+        header_layout.addWidget(self.btn_prev_week)
+
+        # 周期显示标签
+        self.lbl_week_range = QtWidgets.QLabel()
+        self.lbl_week_range.setFont(create_font(12, bold=True))
+        self.lbl_week_range.setStyleSheet("color: #333333; padding: 5px 15px;")
+        header_layout.addWidget(self.lbl_week_range)
+
+        # 右箭头按钮 - 选择下周
+        self.btn_next_week = QtWidgets.QPushButton("▶")
+        self.btn_next_week.setFixedSize(40, 40)
+        self.btn_next_week.setFont(create_font(12, bold=True))
+        self.btn_next_week.clicked.connect(self._next_week)
+        header_layout.addWidget(self.btn_next_week)
+
+        main_layout.addLayout(header_layout)
+
+        # 直方图区域
+        self.histogram_widget = HistogramWidget(self.current_start_date, self.data_manager)
+        main_layout.addWidget(self.histogram_widget)
+
+        # 本周任务列表标题
+        weekly_tasks_title = QtWidgets.QLabel("本周任务投入时间")
+        weekly_tasks_title.setFont(create_font(12, bold=True))
+        weekly_tasks_title.setStyleSheet("padding-top: 10px;")
+        main_layout.addWidget(weekly_tasks_title)
+
+        # 本周任务列表滚动区域
+        self.tasks_scroll_area = QtWidgets.QScrollArea()
+        self.tasks_scroll_area.setWidgetResizable(True)
+        self.tasks_container = QtWidgets.QWidget()
+        self.tasks_layout = QtWidgets.QVBoxLayout(self.tasks_container)
+        self.tasks_layout.setContentsMargins(0, 0, 0, 0)
+        self.tasks_layout.setSpacing(8)
+        self.tasks_scroll_area.setWidget(self.tasks_container)
+        self.tasks_scroll_area.setMaximumHeight(200)
+        main_layout.addWidget(self.tasks_scroll_area)
+
+        # 底部统计信息
+        bottom_layout = QtWidgets.QHBoxLayout()
+        self.lbl_week_total = QtWidgets.QLabel("本周总计: 0小时 0分钟")
+        self.lbl_week_total.setFont(create_font(10, bold=True))
+        self.lbl_week_total.setStyleSheet("color: #333333;")
+        bottom_layout.addWidget(self.lbl_week_total)
+
+        self.lbl_month_total = QtWidgets.QLabel("本月总计: 0小时 0分钟")
+        self.lbl_month_total.setFont(create_font(10, bold=True))
+        self.lbl_month_total.setStyleSheet("color: #333333;")
+        bottom_layout.addStretch()
+        bottom_layout.addWidget(self.lbl_month_total)
+
+        main_layout.addLayout(bottom_layout)
+
+        # 更新数据显示
+        self._update_display()
+
+    def _get_monday_for_current_week(self):
+        """获取当前周的周一日期"""
+        today = datetime.now()
+        monday = today - timedelta(days=today.weekday())
+        return monday.date()
+
+    def _prev_week(self):
+        """切换到上一周"""
+        self._animate_transition(direction='right')
+        self.current_start_date -= timedelta(days=7)
+        self._update_display()
+
+    def _next_week(self):
+        """切换到下一周"""
+        self._animate_transition(direction='left')
+        self.current_start_date += timedelta(days=7)
+        self._update_display()
+
+    def _animate_transition(self, direction='left'):
+        """执行横向过渡动画"""
+        # 创建淡入淡出动画
+        opacity_effect = QtWidgets.QGraphicsOpacityEffect()
+        self.histogram_widget.setGraphicsEffect(opacity_effect)
+        
+        anim = QtCore.QPropertyAnimation(opacity_effect, b"opacity")
+        anim.setDuration(200)
+        anim.setStartValue(1.0)
+        anim.setEndValue(0.0)
+        anim.start(QtCore.QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+        
+        # 动画完成后恢复不透明度
+        QtCore.QTimer.singleShot(200, lambda: self._restore_opacity(opacity_effect))
+
+    def _restore_opacity(self, effect):
+        """恢复直方图的不透明度"""
+        anim = QtCore.QPropertyAnimation(effect, b"opacity")
+        anim.setDuration(200)
+        anim.setStartValue(0.0)
+        anim.setEndValue(1.0)
+        anim.start(QtCore.QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+
+    def _update_display(self):
+        """更新显示内容"""
+        # 更新周期标签
+        end_date = self.current_start_date + timedelta(days=6)
+        self.lbl_week_range.setText(f"{self.current_start_date.strftime('%m月%d日')} - {end_date.strftime('%m月%d日')}")
+
+        # 更新直方图
+        self.histogram_widget.update_data(self.current_start_date)
+
+        # 更新任务列表
+        self._update_tasks_list()
+
+        # 更新底部统计
+        self._update_bottom_stats()
+
+    def _update_tasks_list(self):
+        """更新本周任务列表"""
+        # 清空现有内容
+        for i in reversed(range(self.tasks_layout.count())):
+            widget = self.tasks_layout.itemAt(i).widget()
+            if widget is not None:
+                widget.setParent(None)
+
+        # 获取本周统计数据
+        week_start_str = self.current_start_date.strftime("%Y-%m-%d")
+        weekly_stats = self.data_manager.get_weekly_stats(week_start_str)
+
+        # 按时间排序添加任务
+        sorted_tasks = sorted(weekly_stats.items(), key=lambda x: x[1], reverse=True)
+
+        for task_name, duration in sorted_tasks:
+            task_row = QtWidgets.QHBoxLayout()
+            lbl_task_name = QtWidgets.QLabel(task_name)
+            lbl_task_name.setFont(create_font(10))
+            lbl_task_duration = QtWidgets.QLabel(self._format_duration(duration))
+            lbl_task_duration.setFont(create_font(10))
+            lbl_task_duration.setStyleSheet("color: #666666;")
+            task_row.addWidget(lbl_task_name)
+            task_row.addStretch()
+            task_row.addWidget(lbl_task_duration)
+            self.tasks_layout.addLayout(task_row)
+
+    def _update_bottom_stats(self):
+        """更新底部统计信息"""
+        # 本周统计
+        week_start_str = self.current_start_date.strftime("%Y-%m-%d")
+        weekly_stats = self.data_manager.get_weekly_stats(week_start_str)
+        total_week_seconds = sum(weekly_stats.values())
+        self.lbl_week_total.setText(f"本周总计: {self._format_duration(total_week_seconds)}")
+
+        # 本月统计
+        current_month = datetime.now().strftime("%Y-%m")
+        monthly_stats = self.data_manager.get_monthly_stats(current_month)
+        total_month_seconds = sum(monthly_stats.values())
+        self.lbl_month_total.setText(f"本月总计: {self._format_duration(total_month_seconds)}")
+
     def _format_duration(self, seconds):
         """格式化时长显示"""
         hours = int(seconds // 3600)
         minutes = int((seconds % 3600) // 60)
-        secs = int(seconds % 60)
+        if hours > 0:
+            return f"{hours}小时 {minutes}分钟"
+        elif minutes > 0:
+            return f"{minutes}分钟"
+        else:
+            return f"{int(seconds)}秒"
+
+
+class HistogramWidget(QtWidgets.QWidget):
+    """周度时间直方图组件"""
+    def __init__(self, start_date, data_manager):
+        super().__init__()
+        self.start_date = start_date
+        self.data_manager = data_manager
+        self.setMinimumHeight(250)
+        self.days_data = [0] * 7  # 存储每天的时间数据
+        self.day_names = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+
+    def update_data(self, start_date):
+        """更新直方图数据"""
+        self.start_date = start_date
+        for i in range(7):
+            day_date = start_date + timedelta(days=i)
+            day_str = day_date.strftime("%Y-%m-%d")
+            daily_stats = self.data_manager.get_daily_stats(day_str)
+            self.days_data[i] = sum(daily_stats.values())  # 总秒数
+        self.update()  # 触发重绘
+
+    def paintEvent(self, event):
+        """绘制直方图"""
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+
+        width = self.width()
+        height = self.height()
+        margin = 50  # 左右边距
+        top_margin = 20  # 顶边距
+        bottom_margin = 40  # 底边距
+
+        # 计算柱状图区域
+        chart_width = width - 2 * margin
+        chart_height = height - top_margin - bottom_margin
+
+        # 找到最大值以确定比例
+        max_value = max(self.days_data) if self.days_data else 1
+        if max_value == 0:
+            max_value = 1  # 防止除零错误
+
+        # 计算柱子的宽度和间距
+        bar_count = 7
+        spacing = chart_width // 20  # 间距
+        bar_width = (chart_width - (bar_count + 1) * spacing) // bar_count
+
+        # 绘制网格线和数值标签
+        # 水平网格线
+        for i in range(0, 6):  # 画5条水平线
+            y_pos = top_margin + int(chart_height * i / 5)
+            painter.setPen(QtGui.QPen(QtGui.QColor(230, 230, 230), 1))
+            painter.drawLine(margin, y_pos, width - margin, y_pos)
+
+        # 绘制柱子和标签
+        for i in range(bar_count):
+            # 计算柱子位置和高度
+            x_pos = margin + i * (bar_width + spacing) + spacing
+            value = self.days_data[i]
+            bar_height = int((value / max_value) * chart_height) if max_value > 0 else 0
+            y_pos = top_margin + chart_height - bar_height  # 从底部开始绘制
+
+            # 选择颜色 - 根据数值大小调整深浅
+            color_intensity = 50 + int(205 * (value / max_value)) if max_value > 0 else 50
+            bar_color = QtGui.QColor(40, 120, 220)
+            painter.setBrush(QtGui.QBrush(bar_color))
+            painter.setPen(QtGui.QPen(bar_color.darker(150), 1))
+
+            # 绘制柱子
+            painter.drawRect(x_pos, y_pos, bar_width, bar_height)
+
+            # 绘制数值标签
+            painter.setPen(QtGui.QPen(QtGui.QColor(100, 100, 100), 1))
+            text_rect = QtCore.QRect(x_pos, y_pos - 20, bar_width, 20)
+            painter.drawText(text_rect, QtCore.Qt.AlignmentFlag.AlignCenter, self._format_duration(value))
+
+            # 绘制星期标签
+            day_label_rect = QtCore.QRect(x_pos, height - bottom_margin + 5, bar_width, 20)
+            painter.setPen(QtGui.QPen(QtGui.QColor(50, 50, 50), 1))
+            painter.drawText(day_label_rect, QtCore.Qt.AlignmentFlag.AlignCenter, self.day_names[i])
+
+        # 绘制Y轴标签
+        for i in range(0, 6):  # 画6个刻度标签
+            y_pos = top_margin + chart_height - int(chart_height * i / 5)
+            value = int(max_value * i / 5)
+            text = self._format_duration(value)
+            painter.setPen(QtGui.QPen(QtGui.QColor(100, 100, 100), 1))
+            text_rect = QtCore.QRect(5, y_pos - 10, margin - 10, 20)
+            painter.drawText(text_rect, QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter, text)
+
+    def mousePressEvent(self, event):
+        """处理鼠标点击事件，显示当天总时长"""
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
+            width = self.width()
+            margin = 50
+            chart_width = width - 2 * margin
+            spacing = chart_width // 20
+            bar_width = (chart_width - 7 * spacing) // 7
+
+            # 计算点击的是哪一天
+            click_x = event.pos().x()
+            for i in range(7):
+                x_pos = margin + i * (bar_width + spacing) + spacing
+                if x_pos <= click_x <= x_pos + bar_width:
+                    # 弹出提示框显示当天总时长
+                    day_date = self.start_date + timedelta(days=i)
+                    day_str = day_date.strftime("%m月%d日")
+                    duration_str = self._format_duration(self.days_data[i])
+                    msg_box = QtWidgets.QMessageBox()
+                    msg_box.setWindowTitle("当日总时长")
+                    msg_box.setText(f"{day_str}\n\n总时长: {duration_str}")
+                    msg_box.exec()
+                    break
+
+    def _format_duration(self, seconds):
+        """格式化时长显示"""
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
         if hours > 0:
             return f"{hours}h {minutes}m"
         elif minutes > 0:
-            return f"{minutes}m {secs}s"
+            return f"{minutes}m"
         else:
-            return f"{secs}s"
+            return f"{int(seconds)}s"

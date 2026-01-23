@@ -115,22 +115,30 @@ class TaskWidget(QtWidgets.QWidget):
         self.timer_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
         self.main_layout.addWidget(self.timer_label)
 
+        # 创建一个按钮容器，整合编辑和删除按钮
+        button_container = QtWidgets.QWidget()
+        button_layout = QtWidgets.QHBoxLayout(button_container)
+        button_layout.setContentsMargins(0, 0, 0, 0)
+        button_layout.setSpacing(4)  # 减少按钮间距
+        
         # 编辑按钮
         btn_edit = QtWidgets.QPushButton("编辑")
-        btn_edit.setFixedWidth(60)
+        btn_edit.setFixedWidth(50)  # 减小宽度
         btn_edit.setFont(font)
         btn_edit.clicked.connect(self.edit)
-        self.main_layout.addWidget(btn_edit)
+        button_layout.addWidget(btn_edit)
 
         # 删除按钮
         btn_del = QtWidgets.QPushButton("删除")
-        btn_del.setFixedWidth(70)
+        btn_del.setFixedWidth(50)  # 减小宽度
         btn_del.setFont(font)
         btn_del.clicked.connect(self.delete)
-        self.main_layout.addWidget(btn_del)
+        button_layout.addWidget(btn_del)
+        
+        self.main_layout.addWidget(button_container)
 
         # 添加点击事件到整个标签区域
-        self.label.mousePressEvent = self._handle_click
+        self.label.mousePressEvent = self._handle_click # type: ignore
         self.main_layout.itemAt(1).widget().setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
 
     def _handle_click(self, event):

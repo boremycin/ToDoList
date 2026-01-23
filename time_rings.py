@@ -8,10 +8,16 @@ class TimeRingWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumSize(350, 350) 
+        self.working_mode = True  # 默认为工作模式
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update)
         self.timer.start(50) 
+
+    def set_working_mode(self, is_working):
+        """设置工作模式状态"""
+        self.working_mode = is_working
+        self.update()
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -57,9 +63,18 @@ class TimeRingWidget(QWidget):
             
             rect = QRectF(cx - draw_radius, cy - draw_radius, draw_radius * 2, draw_radius * 2)
 
+            # 根据工作模式决定颜色
+            if not self.working_mode:
+                # 非工作模式：转换为灰度
+                gray_value = int(0.299 * color.red() + 0.587 * color.green() + 0.114 * color.blue())
+                color = QColor(gray_value, gray_value, gray_value)
+            
             # 1. 绘制底色轨道
             bg_color = QColor(color)
-            bg_color.setAlpha(30)
+            if not self.working_mode:
+                bg_color.setAlpha(15)  # 非工作模式更淡
+            else:
+                bg_color.setAlpha(30)
             pen = QPen(bg_color, thickness)
             pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             painter.setPen(pen)
@@ -85,7 +100,13 @@ class TimeRingWidget(QWidget):
         # 绘制主信息 (如 "Oct 26" 或 "14:30")
         font = QFont("Segoe UI", info_size, QFont.Weight.DemiBold)
         painter.setFont(font)
-        painter.setPen(QColor(40, 40, 40))
+        
+        # 根据工作模式决定文本颜色
+        if self.working_mode:
+            painter.setPen(QColor(40, 40, 40))
+        else:
+            painter.setPen(QColor(120, 120, 120))  # 非工作模式更灰暗
+        
         # 稍微上移一点点，为下方的标签留出空间
         painter.drawText(QRectF(cx - radius, cy - radius * 0.3, radius * 2, radius * 0.4), 
                          Qt.AlignmentFlag.AlignCenter, info_text)
@@ -95,7 +116,13 @@ class TimeRingWidget(QWidget):
         font.setBold(False)
         font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 2) # 增加字母间距提升质感
         painter.setFont(font)
-        painter.setPen(QColor(150, 150, 150))
+        
+        # 分类标签也根据工作模式变化
+        if self.working_mode:
+            painter.setPen(QColor(150, 150, 150))
+        else:
+            painter.setPen(QColor(180, 180, 180))  # 非工作模式稍微亮一些，便于阅读
+            
         painter.drawText(QRectF(cx - radius, cy + radius * 0.1, radius * 2, radius * 0.3), 
                          Qt.AlignmentFlag.AlignCenter, label)
 

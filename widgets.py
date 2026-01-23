@@ -1,7 +1,7 @@
 """UI 组件模块 - 封装所有自定义 UI 控件"""
 from typing import Optional
 from PySide6 import QtCore, QtGui, QtWidgets
-
+import time
 
 class CircleToggle(QtWidgets.QPushButton):
     """圆形切换按钮 - 显示选中/未选中状态"""
@@ -78,6 +78,14 @@ class TaskWidget(QtWidgets.QWidget):
         super().__init__(parent)
         self.text = text
         self.checked = checked
+        self.is_running = False  # 是否正在计时
+        self.start_time = None  # 计时开始时间
+        self.elapsed_time = 0  # 已消耗时间（秒）
+        self.total_elapsed = 0  # 总共消耗时间（秒）
+
+        # RGB动画计时器
+        self.rgb_animation_timer = None
+        self.hue_value = 0  # HSV色彩值，范围0-359
 
         # 创建布局
         self.main_layout = QtWidgets.QHBoxLayout(self)
@@ -100,6 +108,13 @@ class TaskWidget(QtWidgets.QWidget):
         self.update_style()
         self.main_layout.addWidget(self.label)
 
+        # 计时标签
+        self.timer_label = QtWidgets.QLabel("")
+        self.timer_label.setFont(font)
+        self.timer_label.setStyleSheet("color: #888888;")
+        self.timer_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
+        self.main_layout.addWidget(self.timer_label)
+
         # 编辑按钮
         btn_edit = QtWidgets.QPushButton("编辑")
         btn_edit.setFixedWidth(60)
@@ -114,6 +129,90 @@ class TaskWidget(QtWidgets.QWidget):
         btn_del.clicked.connect(self.delete)
         self.main_layout.addWidget(btn_del)
 
+        # 添加点击事件到整个标签区域
+        self.label.mousePressEvent = self._handle_click
+        self.main_layout.itemAt(1).widget().setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+
+    def _handle_click(self, event):
+        """处理任务标签点击事件 - 开始/停止计时"""
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
+            if self.is_running:
+                self.stop_timer()
+            else:
+                # 只有未完成的任务才能开始计时
+                if not self.toggle.isChecked():
+                    self.start_timer()
+        # 调用原始事件处理
+        QtWidgets.QLabel.mousePressEvent(self.label, event)
+
+    def start_timer(self):
+        """开始计时"""
+        if not self.is_running:
+            self.is_running = True
+            self.start_time = time.time()
+            self.update_style()
+            # 启动定时器更新显示
+            self.timer = QtCore.QTimer()
+            self.timer.timeout.connect(self._update_timer_display)
+            self.timer.start(1000)  # 每秒更新一次
+            
+            # 启动RGB动画
+            self._start_rgb_animation()
+
+    def stop_timer(self):
+        """停止计时"""
+        if self.is_running:
+            self.is_running = False
+            # 计算最终耗时
+            if self.start_time:
+                self.total_elapsed += time.time() - self.start_time
+                self.start_time = None
+            self.update_style()
+            # 停止定时器
+            if hasattr(self, 'timer'):
+                self.timer.stop()
+            
+            # 停止RGB动画
+            self._stop_rgb_animation()
+
+    def _start_rgb_animation(self):
+        """启动RGB动画效果"""
+        if self.rgb_animation_timer is None:
+            self.rgb_animation_timer = QtCore.QTimer()
+            self.rgb_animation_timer.timeout.connect(self._animate_rgb)
+            self.rgb_animation_timer.start(50)  # 每50ms更新一次颜色
+
+    def _stop_rgb_animation(self):
+        """停止RGB动画效果"""
+        if self.rgb_animation_timer:
+            self.rgb_animation_timer.stop()
+            self.rgb_animation_timer = None
+
+    def _animate_rgb(self):
+        """RGB动画更新"""
+        # 循环更新HSV值中的H（色相），产生彩虹效果
+        self.hue_value = (self.hue_value + 2) % 360
+        color = QtGui.QColor.fromHsv(self.hue_value, 255, 255)
+        self.setStyleSheet(f"background-color: rgba({color.red()}, {color.green()}, {color.blue()}, 50); border-radius: 5px;")
+
+    def _update_timer_display(self):
+        """更新计时显示"""
+        if self.is_running and self.start_time:
+            current_elapsed = self.total_elapsed + (time.time() - self.start_time)
+            self.timer_label.setText(self.format_time(current_elapsed))
+        else:
+            self.timer_label.setText(self.format_time(self.total_elapsed))
+
+    def format_time(self, seconds):
+        """格式化时间显示"""
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+        if hours > 0:
+            return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+        else:
+            return f"{minutes:02d}:{secs:02d}"
+
     @staticmethod
     def _create_font(size: int) -> QtGui.QFont:
         """创建指定大小的字体"""
@@ -127,15 +226,29 @@ class TaskWidget(QtWidgets.QWidget):
         if self.toggle.isChecked():
             f.setStrikeOut(True)
             self.label.setStyleSheet("color: #888888;")
+            # 停止RGB动画，恢复正常样式
+            if self.rgb_animation_timer:
+                self._stop_rgb_animation()
+            self.setStyleSheet("")
+        elif self.is_running:
+            # 正在运行时的特殊样式 - 由RGB动画处理
+            self.label.setStyleSheet("color: #FFFFFF; font-weight: bold;")
         else:
             f.setStrikeOut(False)
             self.label.setStyleSheet("color: #111111;")
+            # 停止RGB动画，恢复正常样式
+            if self.rgb_animation_timer:
+                self._stop_rgb_animation()
+            self.setStyleSheet("")
         self.label.setFont(f)
         self.label.update()
 
     def on_toggled(self, checked: bool):
         """切换状态时的处理"""
         self.checked = checked
+        # 如果任务完成，停止计时
+        if checked and self.is_running:
+            self.stop_timer()
         self.update_style()
         self.changed.emit()
         self.update()
@@ -152,8 +265,20 @@ class TaskWidget(QtWidgets.QWidget):
 
     def delete(self):
         """删除任务"""
+        # 删除前停止计时
+        if self.is_running:
+            self.stop_timer()
         self.removed.emit(self)
 
     def to_dict(self) -> dict:
         """转换为字典格式用于数据保存"""
-        return {"text": self.label.text(), "checked": bool(self.checked)}
+        return {
+            "text": self.label.text(), 
+            "checked": bool(self.checked),
+            "total_elapsed": self.total_elapsed
+        }
+
+    def load_from_dict(self, data: dict):
+        """从字典加载数据"""
+        self.total_elapsed = data.get("total_elapsed", 0)
+        self._update_timer_display()

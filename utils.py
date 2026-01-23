@@ -1,44 +1,40 @@
 """图标和 UI 工具模块"""
-from PySide6 import QtCore, QtGui
+from PySide6 import QtGui, QtWidgets
+import os
 
 
-def create_notebook_icon() -> QtGui.QIcon:
-    """创建笔记本样式的应用图标"""
-    icon = QtGui.QIcon()
-    pixmap = QtGui.QPixmap(32, 32)
-    pixmap.fill(QtGui.QColor(0, 0, 0, 0))
-    
-    painter = QtGui.QPainter(pixmap)
-    painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
-    
-    # 绘制笔记本背景
-    painter.setPen(QtGui.QPen(QtGui.QColor(50, 50, 50), 1))
-    painter.setBrush(QtGui.QBrush(QtGui.QColor(255, 255, 240)))
-    painter.drawRoundedRect(2, 2, 28, 28, 3, 3)
-    
-    # 绘制左侧装订线
-    painter.setPen(QtGui.QPen(QtGui.QColor(200, 200, 200), 2))
-    painter.drawLine(8, 4, 8, 28)
-    
-    # 绘制横线
-    painter.setPen(QtGui.QPen(QtGui.QColor(180, 180, 180), 1))
-    for i in range(3):
-        y = 8 + i * 6
-        painter.drawLine(10, y, 26, y)
-    
-    # 绘制文字点
-    painter.setPen(QtGui.QPen(QtGui.QColor(100, 100, 100), 1))
-    painter.drawEllipse(12, 10, 2, 2)
-    painter.drawEllipse(12, 16, 2, 2)
-    painter.drawEllipse(12, 22, 2, 2)
-    
-    painter.end()
-    icon.addPixmap(pixmap)
-    return icon
+def create_notebook_icon():
+    """创建笔记本图标"""
+    # 尝试从资源文件创建图标，如果不存在则使用内建图标
+    icon_path = os.path.join(os.path.dirname(__file__), "icon.png")
+    if os.path.exists(icon_path):
+        return QtGui.QIcon(icon_path)
+    else:
+        # 创建一个简单的内建图标
+        pixmap = QtGui.QPixmap(64, 64)
+        pixmap.fill(QtGui.QColor(255, 255, 255))
+        
+        painter = QtGui.QPainter(pixmap)
+        painter.setBrush(QtGui.QColor(40, 120, 220))
+        painter.setPen(QtGui.QColor(30, 100, 200))
+        painter.drawRect(5, 5, 54, 54)
+        
+        painter.setBrush(QtGui.QColor(255, 255, 255))
+        painter.drawRect(10, 10, 44, 44)
+        
+        # Draw lines to represent notebook pages
+        for i in range(5):
+            y = 15 + i * 7
+            painter.setPen(QtGui.QColor(0, 0, 0))
+            painter.drawLine(15, y, 45, y)
+        
+        painter.end()
+        
+        return QtGui.QIcon(pixmap)
 
 
-def create_font(size: int, bold: bool = False) -> QtGui.QFont:
-    """创建指定大小的字体"""
+def create_font(size: int, bold: bool = False):
+    """创建字体"""
     font = QtGui.QFont()
     font.setPointSize(size)
     font.setBold(bold)

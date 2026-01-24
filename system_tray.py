@@ -25,8 +25,8 @@ class SystemTray:
         show_action = tray_menu.addAction("显示主窗口")
         show_action.triggered.connect(self._show_window)
         
-        toggle_floating_action = tray_menu.addAction("切换悬浮圆环")
-        toggle_floating_action.triggered.connect(self._toggle_floating_rings)
+        # toggle_floating_action = tray_menu.addAction("切换悬浮圆环")
+        # toggle_floating_action.triggered.connect(self._toggle_floating_rings)
         
         tray_menu.addSeparator()
         
@@ -65,11 +65,11 @@ class SystemTray:
     def _hide_window(self):
         """隐藏主窗口到托盘，并显示悬浮圆环"""
         self.main_window.hide()
-        # 自动显示悬浮圆环
-        if not self.floating_rings:
-            self.floating_rings = FloatingTimeRings()
-        if not self.floating_rings.isVisible():
-            self.floating_rings.show()
+        # # 自动显示悬浮圆环
+        # if not self.floating_rings:
+        #     self.floating_rings = FloatingTimeRings()
+        # if not self.floating_rings.isVisible():
+        #     self.floating_rings.show()
 
     def _on_tray_activated(self, reason):
         """托盘图标被激活"""

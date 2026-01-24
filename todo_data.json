@@ -1,6 +1,18 @@
 {
   "tasks": {
-    "我的任务": [
+    "Paper Reading": [
+      {
+        "text": "任务1",
+        "checked": false,
+        "total_elapsed": 0
+      },
+      {
+        "text": "任务2",
+        "checked": false,
+        "total_elapsed": 0
+      }
+    ],
+    "Errands": [
       {
         "text": "任务1",
         "checked": false,
@@ -13,18 +25,6 @@
       },
       {
         "text": "任务3",
-        "checked": false,
-        "total_elapsed": 0
-      }
-    ],
-    "Paper Reading": [
-      {
-        "text": "任务1",
-        "checked": false,
-        "total_elapsed": 0
-      },
-      {
-        "text": "任务2",
         "checked": false,
         "total_elapsed": 0
       }

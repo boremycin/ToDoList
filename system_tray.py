@@ -63,13 +63,9 @@ class SystemTray:
                 self.floating_rings.raise_()
 
     def _hide_window(self):
-        """隐藏主窗口到托盘，并显示悬浮圆环"""
+        """隐藏主窗口到托盘"""
         self.main_window.hide()
-        # # 自动显示悬浮圆环
-        # if not self.floating_rings:
-        #     self.floating_rings = FloatingTimeRings()
-        # if not self.floating_rings.isVisible():
-        #     self.floating_rings.show()
+        # 不再干预正在运行的任务计时
 
     def _on_tray_activated(self, reason):
         """托盘图标被激活"""

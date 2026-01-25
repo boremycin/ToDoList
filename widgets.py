@@ -86,6 +86,10 @@ class TaskWidget(QtWidgets.QWidget):
         # RGB动画计时器
         self.rgb_animation_timer = None
         self.hue_value = 0  # HSV色彩值，范围0-359
+        
+        # 防抖定时器 - 防止快速重复点击
+        self.click_debounce_timer = None
+        self.click_debounce_active = False
 
         # 创建布局
         self.main_layout = QtWidgets.QHBoxLayout(self)
@@ -119,56 +123,84 @@ class TaskWidget(QtWidgets.QWidget):
         button_container = QtWidgets.QWidget()
         button_layout = QtWidgets.QHBoxLayout(button_container)
         button_layout.setContentsMargins(0, 0, 0, 0)
-        button_layout.setSpacing(4)  # 减少按钮间距
+        button_layout.setSpacing(2)  # 进一步减少按钮间距
+        
+        # 使用稍小的字体用于按钮
+        button_font = QtGui.QFont()
+        button_font.setPointSize(10)
         
         # 编辑按钮
         btn_edit = QtWidgets.QPushButton("编辑")
-        btn_edit.setFixedWidth(50)  # 减小宽度
-        btn_edit.setFont(font)
+        btn_edit.setFixedWidth(46)
+        btn_edit.setFont(button_font)
         btn_edit.clicked.connect(self.edit)
         button_layout.addWidget(btn_edit)
 
         # 删除按钮
         btn_del = QtWidgets.QPushButton("删除")
-        btn_del.setFixedWidth(50)  # 减小宽度
-        btn_del.setFont(font)
+        btn_del.setFixedWidth(46)
+        btn_del.setFont(button_font)
         btn_del.clicked.connect(self.delete)
         button_layout.addWidget(btn_del)
         
-        self.main_layout.addWidget(button_container)
+        # 防止按钮区域被压缩
+        self.main_layout.addWidget(button_container, alignment=QtCore.Qt.AlignmentFlag.AlignVCenter)
 
-        # 添加点击事件到整个标签区域
-        self.label.mousePressEvent = self._handle_click # type: ignore
+        # 安装事件过滤器来处理标签点击事件
+        self.label.installEventFilter(self)
         self.main_layout.itemAt(1).widget().setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
 
-    def _handle_click(self, event):
-        """处理任务标签点击事件 - 开始/停止计时"""
-        if event.button() == QtCore.Qt.MouseButton.LeftButton:
-            if self.is_running:
-                self.stop_timer()
-            else:
-                # 只有未完成的任务才能开始计时
-                if not self.toggle.isChecked():
-                    self.start_timer()
-        # 调用原始事件处理
-        QtWidgets.QLabel.mousePressEvent(self.label, event)
-
+    def eventFilter(self, obj, event):
+        """事件过滤器 - 处理标签点击事件"""
+        if obj is self.label and event.type() == QtCore.QEvent.Type.MouseButtonPress:
+            mouse_event = event
+            if mouse_event.button() == QtCore.Qt.MouseButton.LeftButton:
+                # 防抖处理：如果在防抖时间内，忽略点击
+                if self.click_debounce_active:
+                    return True
+                
+                # 激活防抖，防止快速重复点击
+                self.click_debounce_active = True
+                self.click_debounce_timer = QtCore.QTimer(self)
+                self.click_debounce_timer.setSingleShot(True)
+                self.click_debounce_timer.timeout.connect(self._reset_debounce)
+                self.click_debounce_timer.start(200)  # 200ms 内忽略重复点击
+                
+                # 发送changed信号给主窗口处理，由主窗口统一管理全局计时状态
+                # 这样可以确保只有一个任务计时，且点击一次即可启动/停止
+                self.changed.emit()
+                        
+                return True  # 标记事件已处理，防止进一步传播
+                
+        # 处理鼠标进入/离开事件以提供视觉反馈
+        elif obj is self.label:
+            if event.type() == QtCore.QEvent.Type.Enter:
+                self.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+                return True
+            elif event.type() == QtCore.QEvent.Type.Leave:
+                self.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.ArrowCursor))
+                return True
+                
+        # 其他事件继续正常处理
+        return super().eventFilter(obj, event)
+    
+    def _reset_debounce(self):
+        """重置防抖标志"""
+        self.click_debounce_active = False
+        
     def start_timer(self):
-        """开始计时"""
+        """开始计时 - 由主窗口控制"""
         if not self.is_running:
             self.is_running = True
             self.start_time = time.time()
             self.update_style()
-            # 启动定时器更新显示
-            self.timer = QtCore.QTimer()
-            self.timer.timeout.connect(self._update_timer_display)
-            self.timer.start(1000)  # 每秒更新一次
-            
             # 启动RGB动画
             self._start_rgb_animation()
+            # 立即刷新显示
+            self.repaint()
 
     def stop_timer(self):
-        """停止计时"""
+        """停止计时 - 由主窗口控制"""
         if self.is_running:
             self.is_running = False
             # 计算最终耗时
@@ -176,24 +208,43 @@ class TaskWidget(QtWidgets.QWidget):
                 self.total_elapsed += time.time() - self.start_time
                 self.start_time = None
             self.update_style()
-            # 停止定时器
-            if hasattr(self, 'timer'):
-                self.timer.stop()
             
             # 停止RGB动画
             self._stop_rgb_animation()
+            
+            # 立即更新计时显示
+            self.update_timer_display()
+            
+            # 发送changed信号以确保数据保存
+            self.changed.emit()
+    
+    def update_timer_display(self):
+        """更新计时显示 - 由主窗口的全局计时器调用"""
+        if self.is_running and self.start_time is not None:
+            current_elapsed = self.total_elapsed + (time.time() - self.start_time)
+            self.timer_label.setText(self.format_time(current_elapsed))
+        else:
+            self.timer_label.setText(self.format_time(self.total_elapsed))
+        # 立即更新UI显示 - 使用repaint强制立即刷新，而不是update队列
+        self.timer_label.repaint()
+        self.main_layout.update()  # 同时更新主布局确保布局正确
 
     def _start_rgb_animation(self):
         """启动RGB动画效果"""
         if self.rgb_animation_timer is None:
-            self.rgb_animation_timer = QtCore.QTimer()
+            self.rgb_animation_timer = QtCore.QTimer(self)  # 设置 parent，确保线程安全
             self.rgb_animation_timer.timeout.connect(self._animate_rgb)
             self.rgb_animation_timer.start(50)  # 每50ms更新一次颜色
 
     def _stop_rgb_animation(self):
         """停止RGB动画效果"""
-        if self.rgb_animation_timer:
+        if self.rgb_animation_timer is not None:
             self.rgb_animation_timer.stop()
+            try:
+                self.rgb_animation_timer.timeout.disconnect()
+            except TypeError:
+                # 如果信号没有连接，会抛出TypeError
+                pass
             self.rgb_animation_timer = None
 
     def _animate_rgb(self):
@@ -202,14 +253,6 @@ class TaskWidget(QtWidgets.QWidget):
         self.hue_value = (self.hue_value + 2) % 360
         color = QtGui.QColor.fromHsv(self.hue_value, 255, 255)
         self.setStyleSheet(f"background-color: rgba({color.red()}, {color.green()}, {color.blue()}, 50); border-radius: 5px;")
-
-    def _update_timer_display(self):
-        """更新计时显示"""
-        if self.is_running and self.start_time:
-            current_elapsed = self.total_elapsed + (time.time() - self.start_time)
-            self.timer_label.setText(self.format_time(current_elapsed))
-        else:
-            self.timer_label.setText(self.format_time(self.total_elapsed))
 
     def format_time(self, seconds):
         """格式化时间显示"""
@@ -249,7 +292,8 @@ class TaskWidget(QtWidgets.QWidget):
                 self._stop_rgb_animation()
             self.setStyleSheet("")
         self.label.setFont(f)
-        self.label.update()
+        self.label.repaint()  # 使用repaint强制立即刷新
+        self.repaint()  # 也刷新整个组件
 
     def on_toggled(self, checked: bool):
         """切换状态时的处理"""
@@ -276,17 +320,41 @@ class TaskWidget(QtWidgets.QWidget):
         # 删除前停止计时
         if self.is_running:
             self.stop_timer()
+        self.cleanup()
         self.removed.emit(self)
+
+    def cleanup(self):
+        """清理所有定时器和资源 - 在删除前必须调用"""
+        # 停止RGB动画定时器
+        if self.rgb_animation_timer is not None:
+            self.rgb_animation_timer.stop()
+            try:
+                self.rgb_animation_timer.timeout.disconnect()
+            except TypeError:
+                pass
+            self.rgb_animation_timer = None
+        
+        # 停止防抖定时器
+        if self.click_debounce_timer is not None:
+            self.click_debounce_timer.stop()
+            self.click_debounce_timer = None
 
     def to_dict(self) -> dict:
         """转换为字典格式用于数据保存"""
+        # 如果任务正在运行，需要计算当前总时间，但不能改变运行状态
+        current_total = self.total_elapsed
+        if self.is_running and self.start_time is not None:
+            # 临时计算总时间，但不改变实际状态
+            current_total += time.time() - self.start_time
+        
         return {
             "text": self.label.text(), 
             "checked": bool(self.checked),
-            "total_elapsed": self.total_elapsed
+            "total_elapsed": current_total
         }
 
     def load_from_dict(self, data: dict):
         """从字典加载数据"""
         self.total_elapsed = data.get("total_elapsed", 0)
-        self._update_timer_display()
+        # 修复：调用正确的update_timer_display方法
+        self.update_timer_display()

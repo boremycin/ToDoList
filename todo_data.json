@@ -4,29 +4,34 @@
       {
         "text": "任务1",
         "checked": false,
-        "total_elapsed": 0
+        "total_elapsed": 30.3607075214386
       },
       {
         "text": "任务2",
         "checked": false,
-        "total_elapsed": 0
+        "total_elapsed": 29.037163734436035
       }
     ],
     "Errands": [
       {
         "text": "任务1",
         "checked": false,
-        "total_elapsed": 0
+        "total_elapsed": 115.00056219100952
       },
       {
         "text": "任务2",
         "checked": false,
-        "total_elapsed": 0
+        "total_elapsed": 39.87535309791565
+      },
+      {
+        "text": "任务2",
+        "checked": false,
+        "total_elapsed": 421.1207718849182
       },
       {
         "text": "任务3",
         "checked": false,
-        "total_elapsed": 0
+        "total_elapsed": 86.9472222328186
       }
     ]
   },

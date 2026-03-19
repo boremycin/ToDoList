@@ -226,7 +226,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _open_report_window(self):
         """打开报告窗口"""
         if self.report_window is None or not self.report_window.isVisible():
-            self.report_window = ReportWindow(self.data_manager)
+            self.report_window = ReportWindow(self.data_manager, self)
             self.report_window.show()
         else:
             self.report_window.activateWindow()
@@ -689,9 +689,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
 class ReportWindow(QtWidgets.QWidget):
     """报告窗口 - 包含周度直方图和任务时间统计"""
-    def __init__(self, data_manager):
+    def __init__(self, data_manager, parent_window=None):
         super().__init__()
         self.data_manager = data_manager
+        self.parent_window = parent_window
         self.setWindowTitle("任务统计报告")
         self.resize(800, 600)
         self.setWindowIcon(create_notebook_icon())
@@ -838,9 +839,13 @@ class ReportWindow(QtWidgets.QWidget):
             if widget is not None:
                 widget.setParent(None)
 
-        # 获取本周统计数据
+        # 获取本周统计数据（包含已完成和正在运行的任务）
         week_start_str = self.current_start_date.strftime("%Y-%m-%d")
         weekly_stats = self.data_manager.get_weekly_stats(week_start_str)
+        
+        # 添加当前正在运行任务的时间
+        # 这样可以在报告中实时显示正在计时的任务
+        weekly_stats = self._include_running_task_time(weekly_stats, week_start_str)
 
         # 按时间排序添加任务
         sorted_tasks = sorted(weekly_stats.items(), key=lambda x: x[1], reverse=True)
@@ -862,14 +867,69 @@ class ReportWindow(QtWidgets.QWidget):
         # 本周统计
         week_start_str = self.current_start_date.strftime("%Y-%m-%d")
         weekly_stats = self.data_manager.get_weekly_stats(week_start_str)
+        # 包含当前运行任务的时间
+        weekly_stats = self._include_running_task_time(weekly_stats, week_start_str)
         total_week_seconds = sum(weekly_stats.values())
         self.lbl_week_total.setText(f"本周总计: {self._format_duration(total_week_seconds)}")
 
         # 本月统计
         current_month = datetime.now().strftime("%Y-%m")
         monthly_stats = self.data_manager.get_monthly_stats(current_month)
+        # 包含当前运行任务的时间
+        monthly_stats = self._include_running_task_time_for_month(monthly_stats, current_month)
         total_month_seconds = sum(monthly_stats.values())
         self.lbl_month_total.setText(f"本月总计: {self._format_duration(total_month_seconds)}")
+
+    def _include_running_task_time(self, stats: dict, week_start_str: str) -> dict:
+        """在周统计中包含当前正在运行的任务的时间"""
+        # 获取当前正在运行任务的累积时长
+        if self.parent_window and self.parent_window.current_running_task:
+            task = self.parent_window.current_running_task
+            # 检查任务是否在本周内
+            today = datetime.now()
+            week_start = datetime.strptime(week_start_str, "%Y-%m-%d")
+            
+            # 如果任务在本周内（简化处理：只检查今天是否在周内）
+            days_since_week_start = (today - week_start).days
+            if 0 <= days_since_week_start <= 6:
+                task_name = task.text
+                current_total = task.total_elapsed
+                if task.is_running and task.start_time is not None:
+                    # 加上当前运行的时间
+                    current_total += time.time() - task.start_time
+                
+                # 添加到统计数据
+                if task_name in stats:
+                    stats[task_name] += current_total
+                else:
+                    stats[task_name] = current_total
+        
+        return stats
+
+    def _include_running_task_time_for_month(self, stats: dict, current_month: str) -> dict:
+        """在月统计中包含当前正在运行的任务的时间"""
+        # 获取当前正在运行任务的累积时长
+        if self.parent_window and self.parent_window.current_running_task:
+            task = self.parent_window.current_running_task
+            # 检查任务是否在本月内
+            today = datetime.now()
+            current_month_date = datetime.strptime(current_month + "-01", "%Y-%m-%d")
+            
+            # 如果任务在本月内（简化处理：检查月份是否相同）
+            if today.year == current_month_date.year and today.month == current_month_date.month:
+                task_name = task.text
+                current_total = task.total_elapsed
+                if task.is_running and task.start_time is not None:
+                    # 加上当前运行的时间
+                    current_total += time.time() - task.start_time
+                
+                # 添加到统计数据
+                if task_name in stats:
+                    stats[task_name] += current_total
+                else:
+                    stats[task_name] = current_total
+        
+        return stats
 
     def _format_duration(self, seconds):
         """格式化时长显示"""

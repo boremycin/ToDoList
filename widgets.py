@@ -72,6 +72,7 @@ class TaskWidget(QtWidgets.QWidget):
     """单个任务项组件"""
     
     changed = QtCore.Signal()
+    timer_toggle_requested = QtCore.Signal()
     removed = QtCore.Signal(object)  # 发出 self 信号以通知父窗口删除该任务
 
     def __init__(self, text: str, checked: bool = False, parent=None):
@@ -126,20 +127,29 @@ class TaskWidget(QtWidgets.QWidget):
         button_layout.setSpacing(2)  # 进一步减少按钮间距
         
         # 使用稍小的字体用于按钮
-        button_font = QtGui.QFont()
+        button_font = QtGui.QFont("Microsoft YaHei UI")
+        if not button_font.exactMatch():
+            button_font = QtGui.QFont("Microsoft YaHei")
+        if not button_font.exactMatch():
+            button_font = QtGui.QFont("Segoe UI")
         button_font.setPointSize(10)
+        button_font.setBold(True)
         
         # 编辑按钮
         btn_edit = QtWidgets.QPushButton("编辑")
-        btn_edit.setFixedWidth(46)
+        btn_edit.setMinimumSize(64, 34)
+        btn_edit.setSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Fixed)
         btn_edit.setFont(button_font)
+        btn_edit.setText("编辑")
         btn_edit.clicked.connect(self.edit)
         button_layout.addWidget(btn_edit)
 
         # 删除按钮
         btn_del = QtWidgets.QPushButton("删除")
-        btn_del.setFixedWidth(46)
+        btn_del.setMinimumSize(64, 34)
+        btn_del.setSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Fixed)
         btn_del.setFont(button_font)
+        btn_del.setText("删除")
         btn_del.clicked.connect(self.delete)
         button_layout.addWidget(btn_del)
         
@@ -166,9 +176,8 @@ class TaskWidget(QtWidgets.QWidget):
                 self.click_debounce_timer.timeout.connect(self._reset_debounce)
                 self.click_debounce_timer.start(200)  # 200ms 内忽略重复点击
                 
-                # 发送changed信号给主窗口处理，由主窗口统一管理全局计时状态
-                # 这样可以确保只有一个任务计时，且点击一次即可启动/停止
-                self.changed.emit()
+                # 标签点击只负责请求启停计时，编辑/勾选等数据变更走 changed 信号
+                self.timer_toggle_requested.emit()
                         
                 return True  # 标记事件已处理，防止进一步传播
                 
@@ -298,9 +307,6 @@ class TaskWidget(QtWidgets.QWidget):
     def on_toggled(self, checked: bool):
         """切换状态时的处理"""
         self.checked = checked
-        # 如果任务完成，停止计时
-        if checked and self.is_running:
-            self.stop_timer()
         self.update_style()
         self.changed.emit()
         self.update()

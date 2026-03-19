@@ -35,7 +35,11 @@ def create_notebook_icon():
 
 def create_font(size: int, bold: bool = False):
     """创建字体"""
-    font = QtGui.QFont()
+    font = QtGui.QFont("Microsoft YaHei UI")
+    if not font.exactMatch():
+        font = QtGui.QFont("Microsoft YaHei")
+    if not font.exactMatch():
+        font = QtGui.QFont("Segoe UI")
     font.setPointSize(size)
     font.setBold(bold)
     return font

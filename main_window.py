@@ -73,21 +73,25 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _create_right_panel_no_header(self) -> QtWidgets.QWidget:
         """创建右侧面板（任务管理）- 不含顶部标题栏"""
-        right = QtWidgets.QWidget()
+        right = QtWidgets.QFrame()
+        right.setObjectName("TaskPanel")
         right_layout = QtWidgets.QVBoxLayout(right)
-        right_layout.setContentsMargins(12, 12, 12, 12)
-        right_layout.setSpacing(8)
+        right_layout.setContentsMargins(18, 18, 18, 18)
+        right_layout.setSpacing(14)
 
         # 任务输入框
         add_layout = QtWidgets.QHBoxLayout()
+        add_layout.setSpacing(10)
         self.input_task = QtWidgets.QLineEdit()
         self.input_task.setPlaceholderText("添加新任务，按回车确认")
         self.input_task.setFont(create_font(12))
+        self.input_task.setMinimumHeight(42)
         self.input_task.returnPressed.connect(self.add_task_from_input)
         add_layout.addWidget(self.input_task)
 
         btn_add_task = QtWidgets.QPushButton("添加")
         btn_add_task.setFont(create_font(12))
+        btn_add_task.setMinimumHeight(42)
         btn_add_task.clicked.connect(self.add_task_from_input)
         add_layout.addWidget(btn_add_task)
         right_layout.addLayout(add_layout)
@@ -107,8 +111,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # 添加当前列表标签，放置在输入框上方
         self.current_list_label = QtWidgets.QLabel("")
-        self.current_list_label.setFont(create_font(18, bold=True))
-        self.current_list_label.setStyleSheet("color: #333333;")
+        self.current_list_label.setObjectName("CurrentListLabel")
+        self.current_list_label.setFont(create_font(20, bold=True))
         right_layout.insertWidget(0, self.current_list_label)
         return right
 
@@ -116,31 +120,44 @@ class MainWindow(QtWidgets.QMainWindow):
         """构建用户界面"""
         # 创建主布局容器
         main_widget = QtWidgets.QWidget()
+        main_widget.setObjectName("MainSurface")
         main_layout = QtWidgets.QVBoxLayout(main_widget)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(18, 18, 18, 18)
+        main_layout.setSpacing(16)
 
         # 添加时间圆环组件 - 放在最顶部
-        self.time_ring_widget = TimeRingWidget()
+        self.main_splitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
+        self.main_splitter.setChildrenCollapsible(False)
+        self.main_splitter.setHandleWidth(10)
+
+        top_panel = self._create_top_panel()
+        self.main_splitter.addWidget(top_panel)
         # 添加点击事件以切换工作/休息状态
         self.time_ring_widget.mousePressEvent = self._toggle_working_mode
         self.time_ring_widget.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
-        main_layout.addWidget(self.time_ring_widget)
+        self.time_ring_widget.setMinimumHeight(280)
 
         # 创建分割器用于左右面板
-        splitter = QtWidgets.QSplitter()
-        splitter.setHandleWidth(2)
+        splitter = self.content_splitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
+        splitter.setChildrenCollapsible(False)
+        splitter.setHandleWidth(10)
 
         # 左侧：列表管理
         left = self._create_left_panel()
         splitter.addWidget(left)
-        left.setMaximumWidth(280)
+        left.setMinimumWidth(220)
 
         # 右侧：任务管理（移除原有的标题栏，因为现在有时间圆环了）
         right = self._create_right_panel_no_header()
         splitter.addWidget(right)
 
-        main_layout.addWidget(splitter)
+        self.main_splitter.addWidget(splitter)
+        self.main_splitter.setStretchFactor(0, 3)
+        self.main_splitter.setStretchFactor(1, 5)
+        splitter.setStretchFactor(0, 2)
+        splitter.setStretchFactor(1, 5)
+        splitter.setSizes([260, 640])
+        main_layout.addWidget(self.main_splitter)
 
         self.setCentralWidget(main_widget)
 
@@ -151,6 +168,136 @@ class MainWindow(QtWidgets.QMainWindow):
         # 初始化工作状态
         self.working_mode = True
         self._update_working_visuals()
+        self._apply_window_styles()
+
+    def _create_top_panel(self) -> QtWidgets.QWidget:
+        """创建顶部玻璃风格区域。"""
+        top = QtWidgets.QFrame()
+        top.setObjectName("HeroPanel")
+        layout = QtWidgets.QVBoxLayout(top)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(12)
+
+        header_row = QtWidgets.QHBoxLayout()
+        header_row.setSpacing(12)
+
+        title_wrap = QtWidgets.QVBoxLayout()
+        title_wrap.setSpacing(6)
+        hero_title = QtWidgets.QLabel("Record Today")
+        hero_title.setObjectName("HeroTitle")
+        hero_title.setFont(create_font(26, bold=True))
+        hero_subtitle = QtWidgets.QLabel("Focus on one thing at a time, then let the day speak for itself.")
+        hero_subtitle.setObjectName("HeroSubtitle")
+        hero_subtitle.setWordWrap(True)
+        title_wrap.addWidget(hero_title)
+        title_wrap.addWidget(hero_subtitle)
+        header_row.addLayout(title_wrap, 1)
+
+        self.mode_badge = QtWidgets.QLabel()
+        self.mode_badge.setObjectName("ModeBadge")
+        self.mode_badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.mode_badge.setMinimumSize(120, 40)
+        header_row.addWidget(self.mode_badge, 0, QtCore.Qt.AlignmentFlag.AlignTop)
+        layout.addLayout(header_row)
+
+        self.time_ring_widget = TimeRingWidget()
+        self.time_ring_widget.setObjectName("TimeRingWidget")
+        self.time_ring_widget.mousePressEvent = self._toggle_working_mode
+        self.time_ring_widget.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        layout.addWidget(self.time_ring_widget, 1)
+        return top
+
+    def _apply_window_styles(self):
+        """应用主界面样式。"""
+        self.setStyleSheet("""
+            QWidget#MainSurface {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #eef6ff, stop:0.55 #f7f4ee, stop:1 #e8efe7);
+            }
+            QFrame#HeroPanel {
+                background-color: rgba(255, 255, 255, 168);
+                border: 1px solid rgba(255, 255, 255, 210);
+                border-radius: 28px;
+            }
+            QFrame#ListPanel, QFrame#TaskPanel {
+                background-color: rgba(255, 252, 248, 220);
+                border: 1px solid rgba(198, 181, 166, 120);
+                border-radius: 24px;
+            }
+            QLabel#HeroTitle {
+                color: #1d3557;
+            }
+            QLabel#HeroSubtitle {
+                color: rgba(29, 53, 87, 180);
+                font-size: 13px;
+            }
+            QLabel#ModeBadge {
+                border-radius: 20px;
+                padding: 8px 14px;
+                font-weight: 700;
+                letter-spacing: 1px;
+            }
+            QLabel#CurrentListLabel {
+                color: #183153;
+            }
+            QListWidget {
+                background: rgba(255, 255, 255, 150);
+                border: 1px solid rgba(181, 199, 214, 160);
+                border-radius: 18px;
+                padding: 8px;
+            }
+            QListWidget::item {
+                border-radius: 12px;
+                padding: 10px 12px;
+                margin: 4px 0;
+            }
+            QListWidget::item:selected {
+                background: rgba(92, 141, 255, 80);
+                color: #17345f;
+            }
+            QLineEdit, QPushButton, QScrollArea {
+                border-radius: 16px;
+            }
+            QLineEdit {
+                background: rgba(255, 255, 255, 190);
+                border: 1px solid rgba(165, 181, 205, 180);
+                padding: 10px 14px;
+                color: #1f2937;
+            }
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 rgba(50, 99, 181, 220), stop:1 rgba(73, 145, 255, 220));
+                color: white;
+                border: 0;
+                padding: 10px 16px;
+                font-weight: 700;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 rgba(42, 88, 165, 235), stop:1 rgba(57, 126, 229, 235));
+            }
+            QScrollArea {
+                background: transparent;
+                border: none;
+            }
+            QSplitter::handle {
+                background: rgba(94, 114, 147, 70);
+                border-radius: 4px;
+                margin: 4px;
+            }
+            QStatusBar {
+                background: rgba(255, 255, 255, 140);
+                color: #355070;
+            }
+        """)
+
+        for panel in self.findChildren(QtWidgets.QFrame):
+            if panel.objectName() in {"HeroPanel", "ListPanel", "TaskPanel"}:
+                shadow = QtWidgets.QGraphicsDropShadowEffect(panel)
+                shadow.setBlurRadius(36)
+                shadow.setOffset(0, 14)
+                shadow.setColor(QtGui.QColor(42, 61, 84, 45))
+                panel.setGraphicsEffect(shadow)
 
     def _toggle_working_mode(self, event):
         """切换工作/休息模式"""
@@ -168,16 +315,23 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.working_mode:
             # 工作模式：圆环更鲜艳，背景稍暗
             self.time_ring_widget.setStyleSheet("")
+            if hasattr(self, "mode_badge"):
+                self.mode_badge.setText("FOCUS")
+                self.mode_badge.setStyleSheet("background: rgba(54, 114, 255, 52); color: #20439b;")
         else:
             # 休息模式：圆环变灰
             self.time_ring_widget.setStyleSheet("")
+            if hasattr(self, "mode_badge"):
+                self.mode_badge.setText("PAUSE")
+                self.mode_badge.setStyleSheet("background: rgba(237, 173, 83, 58); color: #8f4f00;")
 
     def _create_left_panel(self) -> QtWidgets.QWidget:
         """创建左侧面板（列表管理）"""
-        left = QtWidgets.QWidget()
+        left = QtWidgets.QFrame()
+        left.setObjectName("ListPanel")
         left_layout = QtWidgets.QVBoxLayout(left)
-        left_layout.setContentsMargins(12, 12, 12, 12)
-        left_layout.setSpacing(10)
+        left_layout.setContentsMargins(18, 18, 18, 18)
+        left_layout.setSpacing(14)
 
         # 标题
         lbl_lists = QtWidgets.QLabel("任务列表")
@@ -187,21 +341,21 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # 操作按钮布局 - 在标题下方
         button_layout = QtWidgets.QHBoxLayout()
-        btn_add_list = QtWidgets.QPushButton("+")
-        btn_add_list.setFixedWidth(30)
-        btn_add_list.setFont(create_font(10))
+        btn_add_list = QtWidgets.QPushButton("新建")
+        btn_add_list.setMinimumSize(72, 36)
+        btn_add_list.setFont(create_font(10, bold=True))
         btn_add_list.clicked.connect(self.add_list)
         button_layout.addWidget(btn_add_list)
 
-        btn_rename_list = QtWidgets.QPushButton("R")
-        btn_rename_list.setFixedWidth(30)
-        btn_rename_list.setFont(create_font(10))
+        btn_rename_list = QtWidgets.QPushButton("重命名")
+        btn_rename_list.setMinimumSize(88, 36)
+        btn_rename_list.setFont(create_font(10, bold=True))
         btn_rename_list.clicked.connect(self.rename_list)
         button_layout.addWidget(btn_rename_list)
 
-        btn_delete_list = QtWidgets.QPushButton("×")
-        btn_delete_list.setFixedWidth(30)
-        btn_delete_list.setFont(create_font(10))
+        btn_delete_list = QtWidgets.QPushButton("删除")
+        btn_delete_list.setMinimumSize(72, 36)
+        btn_delete_list.setFont(create_font(10, bold=True))
         btn_delete_list.clicked.connect(self.delete_list)
         button_layout.addWidget(btn_delete_list)
 
@@ -300,6 +454,54 @@ class MainWindow(QtWidgets.QMainWindow):
         except Exception as e:
             print(f"UI数据同步错误: {e}")
 
+    def _include_active_session_time_for_week(self, stats: dict, week_start_str: str) -> dict:
+        """只补当前仍在进行中的会话时间，避免把任务累计时长重复计入周统计。"""
+        if not self.parent_window or not self.parent_window.current_running_task: # type: ignore
+            return stats
+
+        task = self.parent_window.current_running_task # type: ignore
+        if not task.is_running or task.start_time is None:
+            return stats
+
+        week_start = datetime.strptime(week_start_str, "%Y-%m-%d")
+        week_end = week_start + timedelta(days=7)
+        session_start = datetime.fromtimestamp(task.start_time)
+        session_end = datetime.now()
+        overlap_start = max(session_start, week_start)
+        overlap_end = min(session_end, week_end)
+        current_segment = (overlap_end - overlap_start).total_seconds()
+
+        if current_segment > 0:
+            stats[task.text] = stats.get(task.text, 0) + current_segment
+
+        return stats
+
+    def _include_active_session_time_for_month(self, stats: dict, current_month: str) -> dict:
+        """只补当前仍在进行中的会话时间，避免把任务累计时长重复计入月统计。"""
+        if not self.parent_window or not self.parent_window.current_running_task: # type: ignore
+            return stats
+
+        task = self.parent_window.current_running_task # type: ignore
+        if not task.is_running or task.start_time is None:
+            return stats
+
+        month_start = datetime.strptime(current_month + "-01", "%Y-%m-%d")
+        if month_start.month == 12:
+            month_end = month_start.replace(year=month_start.year + 1, month=1)
+        else:
+            month_end = month_start.replace(month=month_start.month + 1)
+
+        session_start = datetime.fromtimestamp(task.start_time)
+        session_end = datetime.now()
+        overlap_start = max(session_start, month_start)
+        overlap_end = min(session_end, month_end)
+        current_segment = (overlap_end - overlap_start).total_seconds()
+
+        if current_segment > 0:
+            stats[task.text] = stats.get(task.text, 0) + current_segment
+
+        return stats
+
     def _format_duration(self, seconds):
         """格式化时长显示"""
         hours = int(seconds // 3600)
@@ -386,7 +588,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # 如果有正在运行的任务，先停止它并更新数据
         if self.current_running_task:
-            self.current_running_task.stop_timer()
+            self._stop_task_and_record(self.current_running_task)
             self.current_running_task = None
             self.current_running_task_list = None
         
@@ -581,7 +783,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.current_running_task = widget
             
             # 连接信号
-            widget.changed.connect(self._handle_task_clicked)
+            widget.timer_toggle_requested.connect(self._handle_task_clicked)
+            widget.changed.connect(self.on_task_changed)
             widget.removed.connect(self.on_task_removed)
             # 连接计时相关信号
             widget.changed.connect(self._update_reports)
@@ -599,7 +802,8 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         list_name = items[0].text()
         widget = TaskWidget(txt)
-        widget.changed.connect(self._handle_task_clicked)
+        widget.timer_toggle_requested.connect(self._handle_task_clicked)
+        widget.changed.connect(self.on_task_changed)
         widget.removed.connect(self.on_task_removed)
         # 连接计时相关信号
         widget.changed.connect(self._update_reports)
@@ -623,7 +827,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
         if self.current_running_task == sender:
             # 情况1：点击当前运行任务 → 停止计时
-            self.current_running_task.stop_timer() # type: ignore
+            self._stop_task_and_record(self.current_running_task) # type: ignore
             self.current_running_task = None
             self.current_running_task_list = None
             
@@ -633,12 +837,23 @@ class MainWindow(QtWidgets.QMainWindow):
             
             # 先停止旧任务（如果有）
             if self.current_running_task:
-                self.current_running_task.stop_timer()
+                self._stop_task_and_record(self.current_running_task)
             
             # 启动新任务
             self.current_running_task = sender
             self.current_running_task_list = self.current_list_name
             self.current_running_task.start_timer()
+
+    def _stop_task_and_record(self, task_widget: TaskWidget):
+        """停止任务计时，并将本次会话按实际日期写入统计。"""
+        if not task_widget.is_running or task_widget.start_time is None:
+            task_widget.stop_timer()
+            return
+
+        session_start = datetime.fromtimestamp(task_widget.start_time)
+        session_end = datetime.now()
+        self.data_manager.record_time_session(task_widget.text, session_start, session_end)
+        task_widget.stop_timer()
 
     def on_task_changed(self):
         """任务状态变化处理"""
@@ -654,15 +869,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 if w.toggle.isChecked() and w.is_running:
                     # 如果这是当前运行任务，停止它并清除引用
                     if self.current_running_task == w:
-                        w.stop_timer()
+                        self._stop_task_and_record(w)
                         self.current_running_task = None
                         self.current_running_task_list = None
-                    # 记录任务完成数据
-                    duration = w.total_elapsed
-                    if duration > 0:  # 只记录有时间投入的任务
-                        self.data_manager.record_task_completion(w.text, duration)
-                        self._update_reports()
-                
+                    else:
+                        self._stop_task_and_record(w)
+
                 arr.append(w.to_dict())
         self.data_manager.data[name] = arr
         self.save_data()  # 确保实时保存
@@ -671,7 +883,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """任务删除处理"""
         # 如果删除的是当前运行的任务，停止计时并清除引用
         if self.current_running_task == widget:
-            self.current_running_task.stop_timer() # type: ignore
+            self._stop_task_and_record(self.current_running_task) # type: ignore
             self.current_running_task = None
             self.current_running_task_list = None
         
@@ -691,6 +903,7 @@ class ReportWindow(QtWidgets.QWidget):
     """报告窗口 - 包含周度直方图和任务时间统计"""
     def __init__(self, data_manager, parent_window=None):
         super().__init__()
+        self.setObjectName("ReportWindow")
         self.data_manager = data_manager
         self.parent_window = parent_window
         self.setWindowTitle("任务统计报告")
@@ -703,8 +916,8 @@ class ReportWindow(QtWidgets.QWidget):
 
         # 主布局
         main_layout = QtWidgets.QVBoxLayout(self)
-        main_layout.setContentsMargins(20, 20, 20, 20)
-        main_layout.setSpacing(15)
+        main_layout.setContentsMargins(18, 18, 18, 18)
+        main_layout.setSpacing(14)
 
         # 顶部日期选择控件
         header_layout = QtWidgets.QHBoxLayout()
@@ -733,8 +946,11 @@ class ReportWindow(QtWidgets.QWidget):
         main_layout.addLayout(header_layout)
 
         # 直方图区域
-        self.histogram_widget = HistogramWidget(self.current_start_date, self.data_manager)
-        main_layout.addWidget(self.histogram_widget)
+        self.report_splitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
+        self.report_splitter.setChildrenCollapsible(False)
+        self.report_splitter.setHandleWidth(10)
+        self.histogram_widget = HistogramWidget(self.current_start_date, self.data_manager, self.parent_window)
+        self.report_splitter.addWidget(self.histogram_widget)
 
         # 本周任务列表标题
         weekly_tasks_title = QtWidgets.QLabel("本周任务投入时间")
@@ -750,8 +966,11 @@ class ReportWindow(QtWidgets.QWidget):
         self.tasks_layout.setContentsMargins(0, 0, 0, 0)
         self.tasks_layout.setSpacing(8)
         self.tasks_scroll_area.setWidget(self.tasks_container)
-        self.tasks_scroll_area.setMaximumHeight(200)
-        main_layout.addWidget(self.tasks_scroll_area)
+        self.tasks_scroll_area.setMinimumHeight(180)
+        self.report_splitter.addWidget(self.tasks_scroll_area)
+        self.report_splitter.setStretchFactor(0, 3)
+        self.report_splitter.setStretchFactor(1, 2)
+        main_layout.addWidget(self.report_splitter)
 
         # 底部统计信息
         bottom_layout = QtWidgets.QHBoxLayout()
@@ -767,6 +986,7 @@ class ReportWindow(QtWidgets.QWidget):
         bottom_layout.addWidget(self.lbl_month_total)
 
         main_layout.addLayout(bottom_layout)
+        self._apply_report_styles()
 
         # 更新数据显示
         self._update_display()
@@ -774,6 +994,41 @@ class ReportWindow(QtWidgets.QWidget):
     def update_data(self):
         """外部调用更新数据的方法"""
         self._update_display()
+
+    def _apply_report_styles(self):
+        """应用报告窗口样式。"""
+        self.setStyleSheet("""
+            QWidget#ReportWindow {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #f7fbff, stop:0.6 #f4efe8, stop:1 #edf3ea);
+            }
+            QLabel {
+                color: #24425c;
+            }
+            QScrollArea {
+                border: 1px solid rgba(173, 190, 203, 150);
+                background: rgba(255, 255, 255, 160);
+                border-radius: 18px;
+            }
+            QSplitter::handle {
+                background: rgba(94, 114, 147, 70);
+                border-radius: 4px;
+                margin: 4px;
+            }
+            QFrame#ReportTaskRow {
+                background: rgba(255, 255, 255, 180);
+                border: 1px solid rgba(188, 198, 210, 120);
+                border-radius: 14px;
+            }
+            QPushButton {
+                background: rgba(255, 255, 255, 175);
+                border: 1px solid rgba(149, 171, 191, 140);
+                border-radius: 16px;
+                padding: 8px 12px;
+                color: #24425c;
+                font-weight: 700;
+            }
+        """)
 
     def _get_monday_for_current_week(self):
         """获取当前周的周一日期"""
@@ -834,10 +1089,7 @@ class ReportWindow(QtWidgets.QWidget):
     def _update_tasks_list(self):
         """更新本周任务列表"""
         # 清空现有内容
-        for i in reversed(range(self.tasks_layout.count())):
-            widget = self.tasks_layout.itemAt(i).widget()
-            if widget is not None:
-                widget.setParent(None)
+        self._clear_layout(self.tasks_layout)
 
         # 获取本周统计数据（包含已完成和正在运行的任务）
         week_start_str = self.current_start_date.strftime("%Y-%m-%d")
@@ -845,13 +1097,16 @@ class ReportWindow(QtWidgets.QWidget):
         
         # 添加当前正在运行任务的时间
         # 这样可以在报告中实时显示正在计时的任务
-        weekly_stats = self._include_running_task_time(weekly_stats, week_start_str)
+        weekly_stats = self._include_active_session_time_for_week(weekly_stats, week_start_str)
 
         # 按时间排序添加任务
         sorted_tasks = sorted(weekly_stats.items(), key=lambda x: x[1], reverse=True)
 
         for task_name, duration in sorted_tasks:
-            task_row = QtWidgets.QHBoxLayout()
+            task_row_widget = QtWidgets.QFrame()
+            task_row_widget.setObjectName("ReportTaskRow")
+            task_row = QtWidgets.QHBoxLayout(task_row_widget)
+            task_row.setContentsMargins(14, 10, 14, 10)
             lbl_task_name = QtWidgets.QLabel(task_name)
             lbl_task_name.setFont(create_font(10))
             lbl_task_duration = QtWidgets.QLabel(self._format_duration(duration))
@@ -860,7 +1115,19 @@ class ReportWindow(QtWidgets.QWidget):
             task_row.addWidget(lbl_task_name)
             task_row.addStretch()
             task_row.addWidget(lbl_task_duration)
-            self.tasks_layout.addLayout(task_row)
+            self.tasks_layout.addWidget(task_row_widget)
+
+    def _clear_layout(self, layout):
+        """安全清空布局中的组件与子布局。"""
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            child_layout = item.layout()
+
+            if widget is not None:
+                widget.deleteLater()
+            elif child_layout is not None:
+                self._clear_layout(child_layout)
 
     def _update_bottom_stats(self):
         """更新底部统计信息"""
@@ -868,7 +1135,7 @@ class ReportWindow(QtWidgets.QWidget):
         week_start_str = self.current_start_date.strftime("%Y-%m-%d")
         weekly_stats = self.data_manager.get_weekly_stats(week_start_str)
         # 包含当前运行任务的时间
-        weekly_stats = self._include_running_task_time(weekly_stats, week_start_str)
+        weekly_stats = self._include_active_session_time_for_week(weekly_stats, week_start_str)
         total_week_seconds = sum(weekly_stats.values())
         self.lbl_week_total.setText(f"本周总计: {self._format_duration(total_week_seconds)}")
 
@@ -876,9 +1143,57 @@ class ReportWindow(QtWidgets.QWidget):
         current_month = datetime.now().strftime("%Y-%m")
         monthly_stats = self.data_manager.get_monthly_stats(current_month)
         # 包含当前运行任务的时间
-        monthly_stats = self._include_running_task_time_for_month(monthly_stats, current_month)
+        monthly_stats = self._include_active_session_time_for_month(monthly_stats, current_month)
         total_month_seconds = sum(monthly_stats.values())
         self.lbl_month_total.setText(f"本月总计: {self._format_duration(total_month_seconds)}")
+
+    def _include_active_session_time_for_week(self, stats: dict, week_start_str: str) -> dict:
+        """只补当前仍在进行中的会话时间，避免把任务累计时长重复计入周统计。"""
+        if not self.parent_window or not self.parent_window.current_running_task:
+            return stats
+
+        task = self.parent_window.current_running_task
+        if not task.is_running or task.start_time is None:
+            return stats
+
+        week_start = datetime.strptime(week_start_str, "%Y-%m-%d")
+        week_end = week_start + timedelta(days=7)
+        session_start = datetime.fromtimestamp(task.start_time)
+        session_end = datetime.now()
+        overlap_start = max(session_start, week_start)
+        overlap_end = min(session_end, week_end)
+        current_segment = (overlap_end - overlap_start).total_seconds()
+
+        if current_segment > 0:
+            stats[task.text] = stats.get(task.text, 0) + current_segment
+
+        return stats
+
+    def _include_active_session_time_for_month(self, stats: dict, current_month: str) -> dict:
+        """只补当前仍在进行中的会话时间，避免把任务累计时长重复计入月统计。"""
+        if not self.parent_window or not self.parent_window.current_running_task:
+            return stats
+
+        task = self.parent_window.current_running_task
+        if not task.is_running or task.start_time is None:
+            return stats
+
+        month_start = datetime.strptime(current_month + "-01", "%Y-%m-%d")
+        if month_start.month == 12:
+            month_end = month_start.replace(year=month_start.year + 1, month=1)
+        else:
+            month_end = month_start.replace(month=month_start.month + 1)
+
+        session_start = datetime.fromtimestamp(task.start_time)
+        session_end = datetime.now()
+        overlap_start = max(session_start, month_start)
+        overlap_end = min(session_end, month_end)
+        current_segment = (overlap_end - overlap_start).total_seconds()
+
+        if current_segment > 0:
+            stats[task.text] = stats.get(task.text, 0) + current_segment
+
+        return stats
 
     def _include_running_task_time(self, stats: dict, week_start_str: str) -> dict:
         """在周统计中包含当前正在运行的任务的时间"""
@@ -945,10 +1260,11 @@ class ReportWindow(QtWidgets.QWidget):
 
 class HistogramWidget(QtWidgets.QWidget):
     """周度时间直方图组件"""
-    def __init__(self, start_date, data_manager):
+    def __init__(self, start_date, data_manager, parent_window=None):
         super().__init__()
         self.start_date = start_date
         self.data_manager = data_manager
+        self.parent_window = parent_window
         self.setMinimumHeight(250)
         self.days_data = [0] * 7  # 存储每天的时间数据
         self.day_names = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']

@@ -68,6 +68,37 @@ class DataManager:
             "timestamp": datetime.now().isoformat()
         })
     
+    def record_time_session(self, task_text: str, start_time: datetime, end_time: datetime):
+        """按真实计时会话记录统计，跨天时自动拆分到每天。"""
+        if end_time <= start_time:
+            return
+
+        current = start_time
+        while current < end_time:
+            next_day = (current + timedelta(days=1)).replace(
+                hour=0,
+                minute=0,
+                second=0,
+                microsecond=0
+            )
+            segment_end = min(end_time, next_day)
+            duration = (segment_end - current).total_seconds()
+
+            if duration > 0:
+                date = current.strftime("%Y-%m-%d")
+                if date not in self.stats:
+                    self.stats[date] = []
+
+                self.stats[date].append({
+                    "task": task_text,
+                    "duration": duration,
+                    "timestamp": segment_end.isoformat(),
+                    "start_time": current.isoformat(),
+                    "end_time": segment_end.isoformat()
+                })
+
+            current = segment_end
+
     def get_daily_stats(self, date: str = None) -> Dict[str, float]: # type: ignore
         """获取某天的统计数据"""
         if date is None:

@@ -9,6 +9,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+release/
 develop-eggs/
 dist/
 downloads/
@@ -106,6 +107,7 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.venv-build/
 env/
 venv/
 ENV/
@@ -144,3 +146,4 @@ dmypy.json
 .Trashes
 ehthumbs.db
 Thumbs.db
+startup_diagnostics.txt
